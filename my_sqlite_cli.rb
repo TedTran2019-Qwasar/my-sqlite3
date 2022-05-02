@@ -42,9 +42,13 @@ class MySqliteCLI
       when 'JOIN'
         handle_join(req, input)
       when 'WHERE'
+        handle_where(req, input)
       when 'ORDER'
+        handle_order(req, input)
       when 'VALUES'
+        handle_values(req, input)
       when 'SET'
+        handle_set(req, input)
       else
         raise 'Invalid syntax'
       end
@@ -61,15 +65,19 @@ class MySqliteCLI
     column_names = []
     while true
       input.shift
-      column_names << input.first
-      break unless input.first.end_with?(',')
+      if input.first.end_with?(',')
+        column_names << input.first[0...-1]
+      else
+        column_names << input.first
+        break
+      end
     end
     input.shift
     req.select(*column_names)
   end
 
   def handle_insert(req, input)
-    raise "Must be INSERT INTO" unless input[1] == 'INTO'
+    raise "Must be INSERT INTO" unless input[1].upcase == 'INTO'
     req.insert(input[2])
     req.shift(3)
   end
@@ -95,7 +103,79 @@ class MySqliteCLI
     req.join(col_a, table_b, col_b)
     input.shift(6)
   end
+
+  def handle_order(req, input)
+    raise 'Invalid order syntax' if input[1].upcase != 'BY' || input[2].nil?
+
+    col_name = input[2]
+    shift = 3
+    order = input[3].upcase
+    if %w[ASC DESC].include?(order)
+      req.order(col_name, order)
+      shift += 1
+    else
+      req.order(col_name)
+    end
+    input.shift(shift)
+  end
+
+  def handle_values(req, input)
+    values = []
+    raise 'Invalid values syntax' unless input[1][0] == '('
+
+    input[1][0] = ''
+    while true
+      input.shift
+      raise 'Invalid values syntax' unless input[0][-1] == ',' || input[0][-1] == ')'
+
+      values << input.first[0...-1]
+      break unless input.first.end_with?(',')
+    end
+    input.shift
+    req.values(*values)
+  end
+
+  def handle_set(req, input)
+    data = {}
+    input.shift
+    while true
+      col = input[0]
+      raise 'Invalid syntax' unless input[1] == '='
+
+      if input[2].end_with?(',')
+        val = input[2][0...-1]
+        data[col] = val
+        input.shift(3)
+      else
+        val = input[2]
+        data[col] = val
+        input.shift(3)
+        break
+      end
+    end
+    req.set(data)
+  end
+
+  def handle_where(req, input)
+    input.shift
+    where_type = input[1].upcase
+    if where_type == '='
+      single_where(req, input)
+    elsif where_type == 'IN'
+      multi_where(req, input)
+    else
+      raise 'Invalid syntax'
+    end
+  end
+
+  def single_where(req, input)
+
+  end
   
+  def multi_where(req, input)
+
+  end
+
   def run_query(req)
     req.query_type == :select ? output_query_results(req.run) : req.run
   end

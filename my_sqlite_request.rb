@@ -74,7 +74,7 @@ class MySqliteRequest
     self
   end
 
-  def order(order = nil, column_name)
+  def order(column_name, order = nil)
     order = 'ASC' if order.nil?
     raise 'Order must be ASC or DESC' unless ORDER.include?(order.upcase)
 
@@ -188,7 +188,7 @@ class MySqliteRequest
     end
     @table = new_table
   end
-  
+
   def run_select
     filtered = select_where
     if @select.include?(:*)
