@@ -19,6 +19,7 @@ class MySqliteCLI
       input = gets.chomp
       break if input == 'quit'
       input_arr = parse_input(input)
+      debugger
       action(input_arr)
     end
   end
@@ -57,7 +58,9 @@ class MySqliteCLI
   end
 
   def handle_from(req, input)
+    remove_extra_quotations(input[1])
     req.from(input[1])
+    debugger
     input.shift(2)
   end
 
@@ -73,18 +76,22 @@ class MySqliteCLI
       end
     end
     input.shift
+    column_names.each { |col| remove_extra_quotations(col) }
     req.select(*column_names)
   end
 
   def handle_insert(req, input)
     raise "Must be INSERT INTO" unless input[1].upcase == 'INTO'
+
+    remove_extra_quotations(input[2])
     req.insert(input[2])
-    req.shift(3)
+    input.shift(3)
   end
 
   def handle_update(req, input)
+    remove_extra_quotations(input[1])
     req.update(input[1])
-    req.shift(2)
+    input.shift(2)
   end
 
   def handle_delete(req, input)
@@ -100,6 +107,7 @@ class MySqliteCLI
     table_b = input[1]
     col_a = input[3]
     col_b = input[5]
+    [col_a, table_b, col_b].each { |col| remove_extra_quotations(col) }
     req.join(col_a, table_b, col_b)
     input.shift(6)
   end
@@ -107,9 +115,9 @@ class MySqliteCLI
   def handle_order(req, input)
     raise 'Invalid order syntax' if input[1].upcase != 'BY' || input[2].nil?
 
-    col_name = input[2]
+    col_name = remove_extra_quotations(input[2])
     shift = 3
-    order = input[3].upcase if input[3]
+    order = remove_extra_quotations(input[3].upcase) if input[3]
     if %w[ASC DESC].include?(order)
       req.order(col_name, order)
       shift += 1
@@ -121,14 +129,13 @@ class MySqliteCLI
 
   def handle_values(req, input)
     values = []
-    raise 'Invalid values syntax' unless input[1][0] == '('
-
-    input[1][0] = ''
+    raise 'Invalid values syntax' unless input[1] == '('
+    input.shift
     while true
       input.shift
       raise 'Invalid values syntax' unless input[0][-1] == ',' || input[0][-1] == ')'
 
-      values << input.first[0...-1]
+      values << remove_extra_quotations(input.first[0...-1])
       break unless input.first.end_with?(',')
     end
     input.shift
@@ -143,11 +150,11 @@ class MySqliteCLI
       raise 'Invalid syntax' unless input[1] == '='
 
       if input[2].end_with?(',')
-        val = input[2][0...-1]
+        val = remove_extra_quotations(input[2][0...-1])
         data[col] = val
         input.shift(3)
       else
-        val = input[2]
+        val = remove_extra_quotations(input[2])
         data[col] = val
         input.shift(3)
         break
@@ -173,27 +180,28 @@ class MySqliteCLI
     criteria = input[2]
     raise 'Invalid where syntax' if criteria.nil?
 
+    [col_name, criteria].each { |col| remove_extra_quotations(col) }
     req.where(col_name, criteria)
     input.shift(3)
   end
-  
+
+  # Where/Values has an extra skip since ( is separated
   def multi_where(req, input)
-    debugger
     criterias = []
     col_name = input.first
-    input.shift(2)
-    raise 'Invalid where syntax' if input[0][0] != '('
+    raise 'Invalid where syntax' if input[2] != '('
+    input.shift(3)
 
-    input[0][0] = ''
     while true
       raise 'Invalid values syntax' unless input[0][-1] == ',' || input[0][-1] == ')'
 
-      criterias << input.first[0...-1]
+      criterias << remove_extra_quotations(input.first[0...-1])
       break unless input.first.end_with?(',')
     
       input.shift
     end
     input.shift
+    remove_extra_quotations(col_name)
     req.where(col_name, criterias)
   end
 
@@ -217,8 +225,28 @@ class MySqliteCLI
   def parse_input(input)
     final = input[-1]
     raise 'Query must end with semiclolon!' unless final == ';'
+    line = add_space_to_left_paren(input[0...-1])
+    CSV.parse_line(line, col_sep: ' ', quote_char: "'", liberal_parsing: true)
+  end
 
-    CSV.parse_line(input[0...-1], col_sep: ' ', quote_char: "'")
+  # Only does this if it's not inside of quotes
+  def add_space_to_left_paren(line)
+    stack = []
+    line.each_char.with_index do |c, i|
+      if c == "'"
+        stack.empty? ? stack << c : stack.pop
+      elsif c == '(' && stack.empty?
+          line[i] = '( '
+          break
+      end
+    end
+    line
+  end
+
+  def remove_extra_quotations(col)
+    col[0] = '' if col[0] == "'" || col[0] == '"'
+    col[-1] = '' if col[-1] == "'" || col[-1] == '"'
+    col
   end
 
   def start_message
@@ -232,7 +260,19 @@ end
 
 =begin
 # Test. Also, it splits by spaces, so don't do name=JohnDoe.
+# Warning: INSERT/UPDATE/DELETE changes the csv file
+# VALUES/IN () has to be handled differently. Since "A X'B C'", if you can see the issue with that
+# Errors
+INSERT INTO nba_player_data VALUES ('Ted Tran', 2022, 2100, F-C, 5'9, 175, 'March 29, 1995', Qwasar);
+SELECT * FROM 'nba_player_data' WHERE name IN ('Matt Zunic', 'Zoran Planinic');
+# Working properly
 SELECT * FROM nba_player_data WHERE name = 'Matt Zunic';
-SELECT * FROM nba_player_data WHERE name IN ('Matt Zunic', 'Zoran Planinic');
 SELECT * FROM nba_player_data ORDER BY name;
+SELECT * FROM nba_player_data JOIN nba_players ON name = Player WHERE name = 'Alaa Abdelnaby';
+SELECT name FROM nba_player_data.csv ORDER BY name;
+SELECT name, weight FROM nba_player_data.csv ORDER BY name desc;
+UPDATE nba_player_data SET weight = 200, name = 'Teddy Tran', college = 'Ted University' WHERE name = 'Ted Tran';
+UPDATE nba_player_data SET weight = 200, name = 'Teddy Tran', college = 'Ted University';
+DELETE FROM nba_player_data WHERE height = 6-10;
+DELETE FROM nba_player_data;
 =end
