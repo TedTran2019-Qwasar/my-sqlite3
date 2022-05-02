@@ -71,6 +71,7 @@ class MySqliteRequest
   end
 
   def join(col_a, table_name_b, col_b)
+    table_name_b << '.csv' unless table_name_b.nil? || table_name_b.end_with?('.csv')
     @joins << [col_a.to_sym, table_name_b, col_b.to_sym]
     self
   end
@@ -85,7 +86,6 @@ class MySqliteRequest
 
   def insert(table_name)
     raise "Can't have two FROMs" if @table_name
-
     @table_name = table_name
     @table_name << '.csv' unless @table_name.nil? || @table_name.end_with?('.csv') 
     @query_type ||= :insert
@@ -284,3 +284,31 @@ class MySqliteRequest
     end
   end
 end
+
+=begin
+# Tests, take off .length to look at output.
+# Testing SELECT
+p MySqliteRequest.new('nba_player_data').select('*').run.length
+p MySqliteRequest.new('nba_player_data').select('*').where('college', nil).run.length
+p MySqliteRequest.new('nba_player_data').select('name').where('college', nil).run.length
+p MySqliteRequest.new('nba_player_data').select('name', 'weight').where('college', nil).run.length
+p MySqliteRequest.new.from('nba_player_data').select('name', 'weight').where('college', nil).order('weight').run.length
+p MySqliteRequest.new.from('nba_player_data.csv').select('name', 'weight').where('college', nil).order('weight', 'ASC').run.length
+p MySqliteRequest.new.from('nba_player_data.csv').select('name', 'weight').where('college', nil).order('weight', 'desc').run.length
+p MySqliteRequest.new.from('nba_player_data.csv').select('name', 'Player').join('name', 'nba_players', 'Player').order('name').run.length
+p MySqliteRequest.new.from('nba_player_data.csv').select('name', 'college', 'collage').join('name', 'nba_players', 'Player').order('name').where('college', nil).run.length
+# Testing INSERT/UPDATE/DELETE. Warning: this changes the CSV file
+# These should add two new rows to the CSV file
+MySqliteRequest.new.insert('nba_player_data').values('Ted Tran', '2022', '2100', 'F-C', "5'9", '175', "March 29, 1995", 'Qwasar').run
+MySqliteRequest.new(nil).insert('nba_player_data.csv').values('EVIL TED', '2022', '2100', 'F-C', "5'9", '175', "March 29, 1995", '42').run
+# The first query should change 'EVIL TED' to 'GOOD TED'
+MySqliteRequest.new(nil).update('nba_player_data').set(name: 'GOOD TED').where('name', 'EVIL TED').run
+# The second should change all rows name to 'SUPER TED'
+MySqliteRequest.new(nil).update('nba_player_data').set(name: 'SUPER TED').run
+# First query will change the 'SUPER TED' whose college is 42 to 'BUM TED'
+MySqliteRequest.new.update('nba_player_data').set(name: 'BUM TED').where('college', '42').run
+# Second query will delete 'BUM TED'
+MySqliteRequest.new('nba_player_data').delete.where('name', 'BUM TED').run
+# Third query will delete the entire table, wiping the CSV file besides col names
+MySqliteRequest.new.from('nba_player_data.csv').delete.run
+=end

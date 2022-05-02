@@ -1,7 +1,7 @@
 require 'date'
 require_relative 'my_sqlite_request'
+require 'byebug'
 
-# It splits by spaces, so don't do email='janedoe'.
 class MySqliteCLI
   KEYWORDS = %w[select insert update delete from join where order values set]
 
@@ -109,7 +109,7 @@ class MySqliteCLI
 
     col_name = input[2]
     shift = 3
-    order = input[3].upcase
+    order = input[3].upcase if input[3]
     if %w[ASC DESC].include?(order)
       req.order(col_name, order)
       shift += 1
@@ -178,6 +178,7 @@ class MySqliteCLI
   end
   
   def multi_where(req, input)
+    debugger
     criterias = []
     col_name = input.first
     input.shift(2)
@@ -189,6 +190,7 @@ class MySqliteCLI
 
       criterias << input.first[0...-1]
       break unless input.first.end_with?(',')
+    
       input.shift
     end
     input.shift
@@ -227,3 +229,10 @@ end
 if __FILE__ == $PROGRAM_NAME
   MySqliteCLI.new(ARGV[0])
 end
+
+=begin
+# Test. Also, it splits by spaces, so don't do name=JohnDoe.
+SELECT * FROM nba_player_data WHERE name = 'Matt Zunic';
+SELECT * FROM nba_player_data WHERE name IN ('Matt Zunic', 'Zoran Planinic');
+SELECT * FROM nba_player_data ORDER BY name;
+=end
