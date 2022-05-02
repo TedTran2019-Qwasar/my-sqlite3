@@ -1,6 +1,5 @@
 require 'date'
 require_relative 'my_sqlite_request'
-require 'byebug'
 
 class MySqliteCLI
   KEYWORDS = %w[select insert update delete from join where order values set]
@@ -19,7 +18,6 @@ class MySqliteCLI
       input = gets.chomp
       break if input == 'quit'
       input_arr = parse_input(input)
-      debugger
       action(input_arr)
     end
   end
@@ -60,7 +58,6 @@ class MySqliteCLI
   def handle_from(req, input)
     remove_extra_quotations(input[1])
     req.from(input[1])
-    debugger
     input.shift(2)
   end
 
@@ -262,16 +259,19 @@ end
 # Test. Also, it splits by spaces, so don't do name=JohnDoe.
 # Warning: INSERT/UPDATE/DELETE changes the csv file
 # VALUES/IN () has to be handled differently. Since "A X'B C'", if you can see the issue with that
-# Errors
+# Stick with single quotations '' for inputs with spaces inbetween. 
+# The parser uses single quotations as its quote char.
 INSERT INTO nba_player_data VALUES ('Ted Tran', 2022, 2100, F-C, 5'9, 175, 'March 29, 1995', Qwasar);
+SELECT * FROM nba_player_data WHERE name = 'Ted Tran';
 SELECT * FROM 'nba_player_data' WHERE name IN ('Matt Zunic', 'Zoran Planinic');
-# Working properly
 SELECT * FROM nba_player_data WHERE name = 'Matt Zunic';
 SELECT * FROM nba_player_data ORDER BY name;
 SELECT * FROM nba_player_data JOIN nba_players ON name = Player WHERE name = 'Alaa Abdelnaby';
-SELECT name FROM nba_player_data.csv ORDER BY name;
-SELECT name, weight FROM nba_player_data.csv ORDER BY name desc;
-UPDATE nba_player_data SET weight = 200, name = 'Teddy Tran', college = 'Ted University' WHERE name = 'Ted Tran';
+SELECT name FROM nba_player_data.csv ORDER BY 'name';
+SELECT name, weight FROM nba_player_data.csv ORDER BY name 'desc';
+SELECT name, weight FROM nba_player_data.csv ORDER BY 'name' "desc";
+SELECT name, weight FROM nba_player_data.csv ORDER BY "name" desc;
+UPDATE nba_player_data SET weight = 200, name = 'Ted Tran', college = 'Ted University' WHERE name = 'Ted Tran';
 UPDATE nba_player_data SET weight = 200, name = 'Teddy Tran', college = 'Ted University';
 DELETE FROM nba_player_data WHERE height = 6-10;
 DELETE FROM nba_player_data;

@@ -35,7 +35,6 @@ class MySqliteRequest
     @table, @columns = form_table(@table_name)
     check_column_mismatch
     join_tables
-    debugger
     case @query_type
     when :select
       run_select
