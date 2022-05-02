@@ -11,10 +11,12 @@ require 'csv'
 class MySqliteRequest
   ORDER = %w[DESC ASC].freeze
 
+  attr_reader :query_type
+
   def initialize(table_name = nil)
     # Data for forming the query
     @table_name = table_name
-    @table_name << '.csv' unless @table_name.nil? || @table_name.end_with?('.csv') 
+    @table_name << '.csv' unless @table_name.nil? || @table_name.end_with?('.csv')
     @query_type = nil
     @joins = []
     @wheres = []
@@ -25,9 +27,9 @@ class MySqliteRequest
     # Data for executing the query
     @table = nil
     @columns = nil
+    @id = nil
   end
 
-  require 'byebug'
   def run
     run_errors
     @table, @columns = form_table(@table_name)
@@ -50,6 +52,7 @@ class MySqliteRequest
     raise "Can't have two FROMs" if @table_name
 
     @table_name = table_name
+    @table_name << '.csv' unless @table_name.nil? || @table_name.end_with?('.csv')
     self
   end
 
@@ -83,12 +86,13 @@ class MySqliteRequest
     raise "Can't have two FROMs" if @table_name
 
     @table_name = table_name
+    @table_name << '.csv' unless @table_name.nil? || @table_name.end_with?('.csv') 
     @query_type ||= :insert
     one_query_type(:insert)
     self
   end
 
-  def values(data)
+  def values(*data)
     raise "Can't have multiple values" if @values
     raise "Can't have value and set" if @set
 
@@ -100,6 +104,7 @@ class MySqliteRequest
     raise "Can't have two FROMs" if @table_name
 
     @table_name = table_name
+    @table_name << '.csv' unless @table_name.nil? || @table_name.end_with?('.csv') 
     @query_type ||= :update
     one_query_type(:update)
     self
@@ -137,7 +142,7 @@ class MySqliteRequest
   end
 
   def check_column_mismatch
-    raise "Insert column value mismatch!" if @query_type == :insert && @columns.size != @values.size
+    raise "Insert column value mismatch!" if @query_type == :insert && @columns.size != (@values.size + 1)
   end
 
   def form_table(table_name)
@@ -154,6 +159,7 @@ class MySqliteRequest
         table[idx] = row
       end
     end
+    @id = table.size + 1
     [table, columns]
   end
 
@@ -182,8 +188,7 @@ class MySqliteRequest
     end
     @table = new_table
   end
-
-  # Handle select all, delete all, update all, no where
+  
   def run_select
     filtered = select_where
     if @select.include?(:*)
@@ -198,7 +203,7 @@ class MySqliteRequest
     return @table if @wheres.empty?
 
     @table.select do |_, row|
-      @wheres.all? { |where| row[where[0]] == where[1] }
+      check_where(row)
     end
   end
 
@@ -224,24 +229,57 @@ class MySqliteRequest
   end
 
   def run_insert
-
+    new_row = {}
+    @columns[0...-1].each.with_index { |col, i| new_row[col] = @values[i] }
+    @table[@id] = new_row
+    @id += 1
+    change_db
   end
 
   def run_delete
+    if @wheres.empty?
+      @table = {}
+    else
+      delete_rows
+    end
+    change_db
+  end
 
+  def delete_rows
+    @table.each do |id, row|
+      @table.delete(id) if check_where(row)
+    end
   end
 
   def run_update
+    if @wheres.empty?
+      @table.each { |_id, row| update_row(row) }
+    else
+      @table.select do |_, row|
+        update_row(row) if check_where(row)
+      end
+    end
+    change_db
+  end
 
+  def check_where(row)
+    @wheres.all? do |where| 
+      if where[1].is_a? Array
+        where[1].include?(row[where[0]])
+      else
+        row[where[0]] == where[1] 
+      end
+    end
+  end
+
+  def update_row(row)
+    @set.each { |k, v| row[k] = v }
+  end
+
+  def change_db
+    CSV.open(@table_name, 'w') do |csv|
+      csv << @columns[0...-1]
+      @table.each { |_id, row| csv << row.reject { |k, _v| k == :id }.values }
+    end
   end
 end
-
-request = MySqliteRequest.new
-request = request.from('nba_players.csv')
-request = request.select('Player')
-request = request.where('birth_state', 'Indiana')
-a = request.run
-
-b = MySqliteRequest.new('nba_players').select('Player').where('birth_state', 'Indiana').run
-p a == b
-p a
