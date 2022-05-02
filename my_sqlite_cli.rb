@@ -169,11 +169,30 @@ class MySqliteCLI
   end
 
   def single_where(req, input)
+    col_name = input[0]
+    criteria = input[2]
+    raise 'Invalid where syntax' if criteria.nil?
 
+    req.where(col_name, criteria)
+    input.shift(3)
   end
   
   def multi_where(req, input)
+    criterias = []
+    col_name = input.first
+    input.shift(2)
+    raise 'Invalid where syntax' if input[0][0] != '('
 
+    input[0][0] = ''
+    while true
+      raise 'Invalid values syntax' unless input[0][-1] == ',' || input[0][-1] == ')'
+
+      criterias << input.first[0...-1]
+      break unless input.first.end_with?(',')
+      input.shift
+    end
+    input.shift
+    req.where(col_name, criterias)
   end
 
   def run_query(req)

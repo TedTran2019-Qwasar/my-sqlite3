@@ -64,6 +64,7 @@ class MySqliteRequest
     self
   end
 
+  # Criteria can be a string or an array of strings
   def where(column_name, criteria)
     @wheres << [column_name.to_sym, criteria]
     self
