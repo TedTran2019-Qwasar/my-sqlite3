@@ -258,8 +258,7 @@ end
 =begin
 # Test. Also, it splits by spaces, so don't do name=JohnDoe.
 # Warning: INSERT/UPDATE/DELETE changes the csv file
-# VALUES/IN () has to be handled differently. Since "A X'B C'", if you can see the issue with that
-# Stick with single quotations '' for inputs with spaces inbetween. 
+# Stick with single quotations '' for inputs with spaces inbetween.
 # The parser uses single quotations as its quote char.
 INSERT INTO nba_player_data VALUES ('Ted Tran', 2022, 2100, F-C, 5'9, 175, 'March 29, 1995', Qwasar);
 SELECT * FROM nba_player_data WHERE name = 'Ted Tran';
