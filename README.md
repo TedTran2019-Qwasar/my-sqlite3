@@ -8,3 +8,7 @@ Both SqLiteRequest and MySqliteCLI have lots of pre-written examples to use at t
 - Followed SQL behavior as closely as possible. E.g, DELETE/UPDATE with no where operates on all rows, etc
 
 I should probably refactor, but eh, whatever. This was fun to do. 
+
+- [ ] Refactor
+- [ ] Replace underlying data structure representing tables for faster queries
+- [ ] Redo expression parser for CLI
